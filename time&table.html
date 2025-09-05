@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Schedule Viewer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --success: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            --warning: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            --dark: #1a1a2e;
+            --darker: #16213e;
+            --light: #f8fafc;
+            --text: #2d3748;
+            --text-light: #718096;
+            --glass: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.18);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .floating-shapes {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .shape {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: float 20s infinite linear;
+        }
+
+        .shape:nth-child(1) { width: 80px; height: 80px; left: 10%; animation-delay: 0s; }
+        .shape:nth-child(2) { width: 120px; height: 120px; left: 20%; animation-delay: 5s; }
+        .shape:nth-child(3) { width: 100px; height: 100px; left: 70%; animation-delay: 10s; }
+        .shape:nth-child(4) { width: 60px; height: 60px; left: 90%; animation-delay: 15s; }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+        }
+
+        .container {
+            position: relative;
+            z-index: 2;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            position: relative;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: -1;
+        }
+
+        .title {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 0%, #f0f8ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            text-shadow: 0 0 30px rgba(255,255,255,0.3);
+            animation: glow 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            0% { filter: drop-shadow(0 0 5px rgba(255,255,255,0.3)); }
+            100% { filter: drop-shadow(0 0 20px rgba(255,255,255,0.6)); }
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 300;
+            margin-bottom: 8px;
+            opacity: 0;
+            animation: fadeInUp 1s ease-out 0.5s forwards;
+        }
+
+        .session-info {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 400;
+            opacity: 0;
+            animation: fadeInUp 1s ease-out 1s forwards;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .control-panel {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: 
+                0 8px 32px rgba(31, 38, 135, 0.37),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .control-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .control-panel:hover::before {
+            left: 100%;
+        }
+
+        .control-panel:hover {
+            transform: translateY(-5px);
+            box-shadow: 
+                0 20px 40px rgba(31, 38, 135, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .select-container {
+            position: relative;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .select-label {
+            display: block;
+            color: white;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        select {
+            width: 100%;
+            padding: 20px 25px;
+            border: none;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            appearance: none;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M7 10l5 5 5-5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 15px center;
+            background-size: 24px;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1);
+            transform: scale(1.02);
+        }
+
+        select option {
+            background: var(--darker);
+            color: white;
+            padding: 10px;
+        }
+
+        .schedule-container {
+            opacity: 0;
+            transform: translateY(50px);
+            transition: all 0.6s ease;
+        }
+
+        .schedule-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .faculty-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .faculty-name {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .day-section {
+            margin-bottom: 50px;
+            animation: slideInUp 0.6s ease forwards;
+        }
+
+        .day-section:nth-child(odd) { animation-delay: 0.1s; }
+        .day-section:nth-child(even) { animation-delay: 0.2s; }
+
+        @keyframes slideInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .day-header {
+            background: var(--primary);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 20px 20px 0 0;
+            font-size: 1.4rem;
+            font-weight: 600;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .day-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .day-content {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-top: none;
+            border-radius: 0 0 20px 20px;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(31, 38, 135, 0.2);
+        }
+
+        .section-tabs {
+            display: flex;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            position: relative;
+        }
+
+        .tab.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .tab::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 3px;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+
+        .tab.active::after {
+            width: 50px;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .schedule-grid {
+            display: grid;
+            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .schedule-card {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .schedule-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--accent);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .schedule-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .schedule-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .slot-badge {
+            background: var(--secondary);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .time-badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .course-name {
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .subject-name {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1rem;
+            margin-bottom: 10px;
+        }
+
+        .type-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .type-class {
+            background: rgba(67, 233, 123, 0.2);
+            color: #43e97b;
+            border: 1px solid rgba(67, 233, 123, 0.3);
+        }
+
+        .type-lab {
+            background: rgba(250, 112, 154, 0.2);
+            color: #fa709a;
+            border: 1px solid rgba(250, 112, 154, 0.3);
+        }
+
+        .free-slots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .free-slot {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .free-slot:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        .free-slot-time {
+            color: white;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .free-slot-period {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.1rem;
+        }
+
+        .error {
+            background: rgba(248, 113, 113, 0.2);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #f87171;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 15px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 15px;
+            }
+            
+            .title {
+                font-size: 2.5rem;
+            }
+            
+            .control-panel {
+                padding: 20px;
+            }
+            
+            .schedule-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .section-tabs {
+                flex-direction: column;
+            }
+            
+            .day-header {
+                padding: 15px 20px;
+                font-size: 1.2rem;
+            }
+        }
+
+        /* Pulse animation for active elements */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+            70% { box-shadow: 0 0 0 20px rgba(255, 255, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="floating-shapes">
+        <div class="shape"></div>
+        <div class="shape"></div>
+        <div class="shape"></div>
+        <div class="shape"></div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Faculty Schedule</h1>
+            <div class="subtitle">RSR Rungta College of Engineering & Technology</div>
+            <div class="subtitle">Department of Computer Science & Engineering</div>
+            <div class="session-info">Session: July-Dec 2025 (Odd Semester) • W.E.F. 29-08-2025</div>
+        </div>
+
+        <div class="control-panel">
+            <div class="select-container">
+                <label class="select-label">Select Faculty Initials</label>
+                <select id="facultySelect" onchange="displaySchedule()">
+                    <option value="">Choose a faculty member...</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="scheduleContainer" class="schedule-container"></div>
+    </div>
+
+    <script>
+        // Time mappings for slots
+        const times = {
+            'I': '09:20 - 10:09 AM',
+            'II': '10:10 - 10:59 AM',
+            'III': '11:20 - 12:09 PM',
+            'IV': '12:10 - 12:59 PM',
+            'V': '01:40 - 02:29 PM',
+            'VI': '02:30 - 03:19 PM',
+            'VII': '03:20 - 04:10 PM'
+        };
+
+        const slotNames = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+
+        // Timetable data (rows from Python code)
+        const rows = [
+            ['', 'RSR RUNGTA COLLEGE OF ENGINEERING & TECHNOLOGY', 'BHILAI', '', '', '', '', '', '', '', '', '', ''],
+            ['', 'DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING', '', '', '', '', '', '', '', '', '', ''],
+            ['', 'MASTER TIME TABLE', '', '', '', '', '', '', '', '', '', ''],
+            ['', 'SESSION JULY-DEC 2025 (ODD SEM)', '', '', '', '', '', '', '', '', '', ''],
+            ['', 'W.E.F. 29-08-2025', '', '', '', '', '', '', '', '', '', ''],
+            ['', 'Days', 'Courses/Time', 'I', 'II', '11:00 AM - 11:19 AM', 'III', 'IV', '01:00 PM - 01:39 PM', 'V', 'VI', 'VII'],
+            ['', '', '', '09:20 - 10:09 AM', '10:10 - 10:59 AM', '', '11:20 - 12:09 PM', '12:10 - 12:59 PM', '', '01:40 - 02:29 PM', '02:30 - 03:19 PM', '03:20 - 04:10 PM'],
+            ['', 'MONDAY', 'DCA', 'OAT(DK)', 'C PRO(KS)', '', 'DCA OAT LAB (DK)', '', '', '', '', ''],
+            ['', '', 'PGDCA', 'OAT(DK)', 'C PRO(KS)', '', 'PGDCA OAT LAB (DK)', '', '', '', '', ''],
+            ['', '', 'BCA-I (HYU) NEP', 'BCA NEP  1ST SEM MO LAB(SC)', '', '', 'OS(SF)', 'OS (SF)', '', 'DM(SD)', 'AL(SD)', 'ENG (PG)'],
+            ['', '', 'BCA-3 SEM NEP', 'CS & CL (SK)', 'SE(NS)', '', 'BCA NEP 3rd sem JAVA LAB (MP) / RDBMS LAB (SC)', '', '', 'TNP(SRS)', 'JAVA (MP)', 'RDBMS(SC)'],
+            ['', '', 'BCA-3 Year', 'BCA 3 Year JAVA LAB (AK) / BCA 3 YEAR PYTHON LAB (ADS)', '', '', 'PYTHON (ADS)', 'AIES (AD)', '', 'JAVA (MP)', 'E – COM(SC)', 'SE (SMK)'],
+            ['', '', 'BCA-3 (OLD)', '.NET (SF)', 'DS(NA)', '', 'SA (D)', 'PYTHON (ADS)', '', 'CSA (AK)', '', 'SE(SMK)'],
+            ['', '', 'BCA 1ST SEM (CSVTU)', 'FIT(YS)', 'PROG. C (SK)', '', 'IKS(AJS)', 'COMM (PG)', '', 'C LAB (SK)', '', 'BC(SD)'],
+            ['', '', 'DIP-V (AIML)', 'CS&SP (KS)', 'SE (AK)', '', 'BDM (MC)', 'PYTN(NS)', '', 'TNP', 'DIP 5 (AIML) - CS & SP LAB (KS)', ''],
+            ['', '', 'DIP-III (AIML)', 'DBMS LAB (MC)', '', '', 'OOPS (NS)', 'HTML CSS (KR)', '', 'TNP(LI)', 'OS(ADS)', 'BBD (GN)'],
+            ['', '', 'MCA I', 'C++(GN)', 'MATH(JS)', '', 'FOC (KS)', 'ADBMS (BS)', '', 'C++ LAB (MC)', '', 'TNP(SS)'],
+            ['', '', 'MCA III', 'CG &IP(D)', 'PP(YS)', '', 'DS(GN)', 'CRIPTO (SK)', '', 'DS LAB (GN)', '', 'MC(AD)'],
+            ['', '', 'B.TECH 5TH (CSE)', 'DA PYTN (KUS)', 'TNP', '', 'FLAT (AT)', 'M & VR (NA)', '', 'Micro P ( NM)', 'CN LAB(D)', ''],
+            ['', '', 'B.TECH 5TH (AIML)', 'INTRO ML (PJ)', 'AI (SF)', '', 'IOT(YS)', 'TOC(AT)', '', 'AI LAB (SF)', '', 'PSML(AMD)'],
+            ['', '', 'B.TECH 5TH (DS)', 'IDAV(NS)', 'AI (SF)', '', 'IOT(YS)', 'TOC(AT)', '', 'IDAV.  LAB (NS)', '', 'IDAV(NS)'],
+            ['', '', 'BTECH 3 (CSE Q1)', 'DELD (MB)', 'PPL(GS)', '', 'TNP (P)', 'DELD (MB)', '', 'OS (BS)', 'M3 (JS)', 'DSA (MP)'],
+            ['', '', 'BTECH 3 (AIML Q3)', 'DSA (MP)', 'OS (BS)', '', 'TNP (P)', 'M3 (MK)', '', 'DELD (MB)', 'INTRO PYTHN (AS)', 'OS(BS)'],
+            ['', '', 'BTECH 7 (CSE)', 'I&WT LAB(KUS) LAB NO 3', '', '', 'ST(D)', 'CS(KS)', '', 'TNP(SH)', 'DMW(AD)', 'ML(PJ)'],
+            ['', '', 'BTECH 7 (AIML)', 'ERP(NA)', 'NLP (PJ)', '', 'ST(D)', 'DAV(KUS)', '', 'DAV(KUS)', 'DEV OPS    LAB (KR) LAB NO 3', ''],
+            ['', 'TUESDAY', 'Courses/Time', 'I', 'II', '11:00 AM - 11:19 AM', 'III', 'IV', '01:00 PM - 01:39 PM', 'V', 'VI', 'VII'],
+            ['', '', '', '09:20 - 10:09 AM', '10:10 - 10:59 AM', '', '11:20 - 12:09 PM', '12:10 - 12:59 PM', '', '01:40 - 02:29 PM', '02:30 - 03:19 PM', '03:20 - 04:10 PM'],
+            ['', '', 'DCA', 'C PRO(KS)', 'IT&OS(SMK)', '', 'DCA C LAB (KS)', '', '', '', '', ''],
+            ['', '', 'PGDCA', 'C PRO(KS)', 'ISO(KR)', '', 'PGDCA C LAB (KS)', '', '', '', '', ''],
+            ['', '', 'BCA-I (HYU) NEP', 'CF -MS(SC)', 'TNP(SRK)', '', 'DM(SD)', 'OS(SF)', '', 'AL(SD)', 'BCA NEP 1ST SEM OS LAB(SF)', ''],
+            ['', '', 'BCA-3 SEM NEP', 'SE (NS)', 'RDBMS (SC)', '', 'BCA NEP 3rd sem JAVA LAB (MP) / RDBMS LAB (SC)', '', '', 'JAVA (MP)', 'ES(NR)', 'AI(ADS)'],
+            ['', '', 'BCA-3 Year', 'JAVA (MP)', 'COMM (PG)', '', 'SE (SMK)', 'AIES (AD)', '', 'E - COM (SC)', 'PYTHON(ADS)', 'JAVA (MP)'],
+            ['', '', 'BCA-3 (OLD)', '.NET (SF)', 'DS (NA)', '', 'SE(SMK)', 'SA (SD)', '', 'CSA (AK)', 'PYTHON (ADS)', 'SA (SD)'],
+            ['', '', 'BCA 1ST SEM (CSVTU)', 'BC(SD)', 'PROG. C (SK)', '', 'DELD LAB (NM)', '', '', 'DELD (NM)', 'FIT(YS)', 'OA (AK)'],
+            ['', '', 'DIP-V (AIML)', 'BDM (MC)', 'SE (AK)', '', 'PYTN (NS)', 'BBD(MC)', '', 'CS&SP (KS)', 'SE(AK)', 'WD PHP (KR)'],
+            ['', '', 'DIP-III (AIML)', 'HTML CSS(KR)', 'OOPS(NS)', '', 'HTML CSS LAB (KR)', '', '', 'DBMS (MC)', 'OOPS LAB (NS)', ''],
+            ['', '', 'MCA I', 'PYTHON LAB (YS)', '', '', 'SEPM (D)', 'C++ (GN)', '', 'SEPM(D)', 'C++  LAB (MC)', ''],
+            ['', '', 'MCA III', 'CRYPTO (SK)', 'DS (GN)', '', 'ANDROID LAB (AK)', '', '', 'PP(YS)', 'MC (AD)', 'CG &IP(D)'],
+            ['', '', 'B.TECH 5TH (CSE)', 'MICRO LAB (NM) / DAP LAB (KUS)', '', '', 'DA PYTN (KUS)', 'FLAT (AT)', '', 'M & VR (NA)', 'CN (D)', 'Micro P (NM)'],
+            ['', '', 'B.TECH 5TH (AIML)', 'INTRO ML (PJ)', 'TOC (AT)', '', 'AI (SF)', 'IOT (YS)', '', 'PSML(AMD)', 'TNP(SS)', 'PSML(AMD)'],
+            ['', '', 'B.TECH 5TH (DS)', 'SADS(AD)', 'TOC (AT)', '', 'AI (SF)', 'IOT (YS)', '', 'IDAV (NS)', 'TNP(SS)', 'SADS (AD)'],
+            ['', '', 'BTECH 3 (CSE Q1)', 'DELD (MB)', 'DSA (MP)', '', 'OS LAB(BS) LAB NO.04', '', '', 'PPL(GS)', 'OS (BS)', 'M3 (JS)'],
+            ['', '', 'BTECH 3 (DS Q2)', '', '', '', '', '', '', '', '', ''],
+            ['', '', 'BTECH 3 (AIML Q3)', 'INTRO PYTHN (AS)', 'DELD(MB)', '', 'M3(MK)', 'DSA (MP)', '', 'OS (BS)', 'PYTHON LAB(ADS)/ DS  DSA LAB(SK) LAB GA 03', ''],
+            ['', '', 'BTECH 7 (CSE)', 'ST(D)', 'DMW(AD)', '', 'ML LAB (PJ) LAB NO.2', '', '', 'I&WT(KUS)', 'CS(KS)', 'ML(PJ)'],
+            ['', '', 'BTECH 7 (AIML)', 'ST (D)', 'NLP (PJ)', '', 'DL (GN)', 'ERP(NA)', '', 'DEEP LEARNING LAB (GN) LAB NO 3', '', 'DAV(KUS)'],
+            ['', '', 'Courses/Time', 'I', 'II', '11:00 AM - 11:19 AM', 'III', 'IV', '01:00 PM - 01:39 PM', 'V', 'VI', 'VII'],
+            ['', '', '', '09:20 - 10:09 AM', '10:10 - 10:59 AM', '', '11:20 - 12:09 PM', '12:10 - 12:59 PM', '', '01:40 - 02:29 PM', '02:30 - 03:19 PM', '03:20 - 04:10 PM'],
+            ['', '', 'DCA', 'IT & OS(SMK)', 'OAT(DK)', '', 'DCA OAT LAB (DK)', '', '', '', '', ''],
+            ['', 'WEDNESDAY', 'PGDCA', 'ISO(KR)', 'OAT(DK)', '', 'PGDCA OAT LAB (DK)', '', '', '', '', ''],
+            ['', '', 'BCA-I (HYU) NEP', 'POM (AR)', 'CF-MS (SC)', '', 'DM(SD)', 'SM (MC)', '', 'BCA NEP 1ST SEM MO LAB(SC)', '', 'AL(SD)'],
+            ['', '', 'BCA-3 SEM NEP', 'AI(ADS)', 'TNP(SRS)', '', 'CS &CL (SK)', 'JAVA (MP)', '', 'ES (NR)', 'JAVA (MP)', 'RDBMS (SC)'],
+            ['', '', 'BCA-3 Year', 'E – COM(SC)', 'AIES (AD)', '', 'SE (SMK)', 'COMM (PG)', '', 'PYTHON (ADS)', 'COMM (PG)', 'JAVA (MP)'],
+            ['', '', 'BCA-3 (OLD)', 'SA (SD)', 'DS (NA)', '', 'SE (SMK)', '.NET (SF)', '', 'PYTHON (ADS)', '.Net LAB (SF)', ''],
+            ['', '', 'BCA 1ST SEM (CSVTU)', 'OA LAB (AK)', '', '', 'FIT (YS)', 'DELD(NM)', '', 'PROG. C (SK)', 'OA (AK)', 'ES (NR)'],
+            ['', '', 'DIP-V (AIML)', 'CS & SP (KS)', 'BDM (MC)', '', 'PYTHON (NS)', 'WD PHP (KR)', '', 'SE (AK)', 'WD PHP(KR)', 'SE(AK)'],
+            ['', '', 'DIP-III(AIML)', 'DBMS (MC)', 'OS (ADS)', '', 'BBD (GN)', 'OOPS (NS)', '', 'HTML CSS (KR)', 'OS LAB (ADS)', ''],
+            ['', '', 'MCA I', 'SEPM(D)', 'FOC  (KS)', '', 'ADBMS (BS)', 'FOC (KS)', '', 'MATHS (JS)', 'ADMS LAB (BS)', ''],
+            ['', '', 'MCA III', 'MC (AD)', 'PPS(YS)', '', 'TNP(S)', 'CRIPTO (SK)', '', 'DS LAB (GN)', '', 'CG & IP(D)'],
+            ['', '', 'B.TECH 5TH (CSE)', 'Micro P (NM)', 'DA PYTN (KUS)', '', 'CN LAB(D)', '', '', 'FLAT (AT)', 'Microprocessor lab (NM) / DAP LAB (KUS)', ''],
+            ['', '', 'B.TECH 5TH (AIML)', 'IOT (YS)', 'AI (SF)', '', 'TOC (AT)', 'INTRO ML (PJ)', '', 'R PROG LAB (AD)', '', 'PSML(AMD)'],
+            ['', '', 'B.TECH 5TH (DS)', 'IOT(YS)', 'AI(SF)', '', 'TOC (AT)', 'SADS(AD)', '', 'R PROG LAB (AD)', '', 'IDAV(NS)'],
+            ['', '', '', '', '', '', '', '', '', '', '', ''],
+            ['', '', 'BTECH 3 (CSE Q1)', 'DELD(MB) LAB NO.04', '', '', 'DSA (MP)', 'PPL(GS)', '', 'OS(BS)', 'M3 (JS)', 'DELD(MB)'],
+            ['', '', 'BTECH 3 (DS Q2)', '', '', '', '', '', '', '', '', ''],
+            ['', '', 'BTECH 3 (AIML Q3)', 'OS LAB (BS) LAB GA 03', '', '', 'DELD LAB (MB)', '', '', 'DSA (MP)', 'DELD (MB)', 'M3(MK)'],
+            ['', '', 'BTECH 7 (CSE)', 'ML LAB (PJ) LAB NO.2', '', '', 'ML (PJ)', 'I&WT  (KUS)', '', 'ST(NA)', 'CS(KS)', 'DMW(AD)'],
+            ['', '', 'BTECH 7 (AIML)', 'DEEP LEARNING LAB (GN) LAB NO 3', '', '', 'DAV(KUS)', 'TNP', '', 'ST(NA)', 'NLP(PJ)', 'DL (GN)'],
+            ['', 'THURSDAY', 'Courses/Time', 'I', 'II', '11:00 AM - 11:19 AM', 'III', 'IV', '01:00 PM - 01:39 PM', 'V', 'VI', 'VII'],
+            ['', '', '', '09:20 - 10:09 AM', '10:10 - 10:59 AM', '', '11:20 - 12:09 PM', '12:10 - 12:59 PM', '', '01:40 - 02:29 PM', '02:30 - 03:19 PM', '03:20 - 04:10 PM'],
+            ['', '', 'DCA', 'OAT(DK)', 'C PRO(KS)', '', 'DCA C LAB (KS)', '', '', '', '', ''],
+            ['', '', 'PGDCA', 'OAT(DK)', 'C PRO(KS)', '', 'PGDCA C LAB (KS)', '', '', '', '', ''],
+            ['', '', 'BCA-I (HYU) NEP', 'DM(SD)', 'CF-MS (SC)', '', 'SM (MC)', 'POM (AR)', '', 'BCA NEP 1ST SEM OS LAB(SF)', '', 'AL(SD)'],
+            ['', '', 'BCA-3 SEM NEP', 'SE(NS)', 'CS & CL (SK)', '', 'BCA NEP 3rd sem JAVA LAB (MP) / RDBMS LAB (SC)', '', '', 'RDBMS (SC)', 'ES(NR)', 'AI(ADS)'],
+            ['', '', 'BCA-3 Year', 'BCA 3 Year PYTHON LAB (ADS) / JAVA LAB (MP) + BCA 3 OLD PYTHON LAB (ADS)', '', '', 'TNP (SZ)', 'PYTHON (ADS)', '', 'SE(SMK)', 'E -COM(SC)', 'AIES (AD)'],
+            ['', '', 'BCA-3 (OLD)', 'BCA 3 Year PYTHON LAB /  BCA 3 OLD PYTHON LAB (ADS)', '', '', 'TNP(SZ)', 'PYTHON (ADS)', '', 'SE (SMK)', 'DS (NA)', 'CSA (AK)'],
+            ['', '', 'BCA 1ST SEM (CSVTU)', 'OA LAB (AK)', '', '', 'PROG .C (SK)', 'IKS(AJS)', '', 'BC(SD)', 'DELD(NM)', 'FIT (YS)'],
+            ['', '', 'DIP-V (AIML)', 'CS & SP (KS)', 'PYTN (NS)', '', 'SE (AK)', 'BDM (MC)', '', 'WD PHP (KR)', 'DIP 5 (AIML) - WD PHP LAB (KR)', ''],
+            ['', '', 'DIP-III (AIML)', 'HTML CSS (KR)', 'TNP(LI)', '', 'BBD (GN)', 'OOPS (NS)', '', 'OS (ADS)', '', 'DBMS (MC)'],
+            ['', '', 'MCA I', 'C++(GN)', 'MATH (JS)', '', 'PYTHON LAB (YS)', '', '', 'FOC (KS)', 'ADBMS (BS)', 'MATH (JS)'],
+            ['', '', 'MCA III', 'TNP(S)', 'PP(YS)', '', 'MC (AD)', 'DS (GN)', '', 'ANDROID LAB (AK)', '', 'CG & IP(D)'],
+            ['', '', 'B.TECH 5TH (CSE)', 'Micro P (NM)', 'FLAT (AT)', '', 'CN (D)', 'DA PYTN (KUS)', '', 'Data Analytics with Python Laboratory(KUS)', '', 'M & VR (NA)'],
+            ['', '', 'B.TECH 5TH (AIML)', 'IOT (YS)', 'AI(SF)', '', 'TOC (AT)', 'INTRO ML (PJ)', '', 'MACHINE LEARNING LAB (PJ)', '', 'PSML(AMD)'],
+            ['', '', 'B.TECH 5TH (DS)', 'IOT(YS)', 'AI(SF)', '', 'TOC (AT)', 'SADS(AD)', '', 'IDAV  LAB (NS)', '', 'IDAV(NS)'],
+            ['', '', 'BTECH 3 (CSE Q1)', 'SOFT LAB (D) LAB NO.02', '', '', 'M3 (JS)', 'TNP (P)', '', 'OS (BS)', 'DELD (MB)', 'DSA (MP)'],
+            ['', '', 'BTECH 3 (DS Q2)', '', '', '', '', '', '', '', '', ''],
+            ['', '', 'BTECH 3 (AIML Q3)', 'OS LAB (BS)  LAB GA 03', '', '', 'OS(BS)', 'INTRO PYTHN(AS)', '', 'DSA (MP)', 'M3 (MK)', 'DELD (MB)'],
+            ['', '', 'BTECH 7 (CSE)', 'I&WT LAB(KUS)  LAB NO 4', '', '', 'ML (PJ)', 'TNP(SH)', '', 'DMW(AD)', 'CS(KS)', 'I&WT(KUS)'],
+            ['', '', 'BTECH 7 (AIML)', 'NLP (PJ)', 'TNP', '', 'DEV OPS    LAB (KR) LAB NO 3', '', '', 'ERP(NA)', 'DL (GN)', 'DL (GN)'],
+            ['', 'FRIDAY', 'Courses/Time', 'I', 'II', '11:00 AM - 11:19 AM', 'III', 'IV', '01:00 PM - 01:39 PM', 'V', 'VI', 'VII'],
+            ['', '', '', '09:20 - 10:09 AM', '10:10 - 10:59 AM', '', '11:20 - 12:09 PM', '12:10 - 12:59 PM', '', '01:40 - 02:29 PM', '02:30 - 03:19 PM', '03:20 - 04:10 PM'],
+            ['', '', 'DCA', 'C PRO(KS)', 'OAT(DK)', '', 'IT&OS(SMK)', '', '', '', '', ''],
+            ['', '', 'PGDCA', 'C PRO(KS)', 'OAT(DK)', '', 'ISO(KR)', '', '', '', '', ''],
+            ['', '', 'BCA-I (HYU) NEP', 'OS (SF)', 'POM (AR)', '', 'DM(SD)', 'ENG (PG)', '', 'TNP(SRK)', 'SM(MC)', 'CF -MS(SC)'],
+            ['', '', 'BCA-3 SEM NEP', 'RDMS(SC)', 'JAVA (MP)', '', 'BCA NEP 3rd sem JAVA LAB (MP) / RDBMS LAB (SC)', '', '', 'SE (NS)', 'AI(ADS)', 'CS & CL (Sk)'],
+            ['', '', '', '', '', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', '', '', '', '', ''],
+            ['', '', 'BCA 1ST SEM (CSVTU)', 'COMM (PG)', 'OA (AK)', '', 'DELD (NM)', 'OA (AK)', '', 'C LAB (SK)', '', 'BC(SD)'],
+            ['', '', 'DIP-V (AIML)', 'WD PHP (KR)', 'BDM (MC)', '', 'TNP', 'PYTN (NS)', '', 'CS & SP (KS)', 'DIP 5 (AI ML) – PYTHON PROGRAMMING LAB (NS)', ''],
+            ['', '', 'DIP-III (AIML)', 'DBMS (MC)', 'HTML CSS (KR)', '', 'OOPS (NS)', 'DBMS (MC)', '', 'OS (ADS)', 'BBD(GN)', ''],
+            ['', '', 'B.TECH 5TH (CSE)', 'Micro P (NM)', 'CN (D)', '', 'DA PYTN (KUS)', 'TNP', '', 'M&VR (NA)', 'FLAT (AT)', 'CN (D)'],
+            ['', '', 'B.TECH 5TH (AIML)', 'PSML(AMD)', 'TNP (SS)', '', 'AI LAB(SF)', '', '', 'TOC (AT)', 'AI (SF)', 'INTRO ML (PJ)'],
+            ['', '', 'B.TECH 5TH (DS)', 'IDAV(NS)', 'TNP (SS)', '', 'AI LAB(SF)', '', '', 'TOC (AT)', 'AI (SF)', 'SADS (AD)'],
+            ['', '', 'BTECH 3 (CSE Q1)', 'DSA (MP)', 'PPL(GS)', '', 'DSA LAB (SK) LAB NO.02', '', '', 'SOFT LAB  (D)', 'M3 (JS)', 'DELD (MB)'],
+            ['', '', 'BTECH 3 (DS Q2)', '', '', '', '', '', '', '', '', ''],
+            ['', '', 'BTECH 3 (AIML Q3)', 'PYTHON LAB(ADS)/ DS  DSA  LAB(SK) LAB GA 03', '', '', 'DELD (MB)', 'TNP (P)', '', 'DSA (MP)', 'M3(MK)', 'INTRO PYTHN(AS)']
+        ];
+
+        // Schedule dictionary: faculty -> list of [day, slot, time_str, course, subject, is_lab]
+        let schedule = {};
+
+        let currentDay = null;
+        let currentCourse = null;
+        const slotCols = [3, 4, 6, 7, 9, 10, 11];
+
+        // Process timetable data
+        for (let row of rows) {
+            if (row.length < 3) continue;
+            if (['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'].includes(row[1])) {
+                currentDay = row[1];
+                if (row[2]) currentCourse = row[2];
+            } else if (row[1] === '' && row[2]) {
+                currentCourse = row[2];
+            } else {
+                continue;
+            }
+
+            for (let i = 0; i < slotCols.length; i++) {
+                let col = slotCols[i];
+                if (col >= row.length) break;
+                let subject = row[col];
+                if (!subject) continue;
+
+                let faculties = (subject.match(/\((\w+)\)/g) || []).map(f => f.match(/\((\w+)\)/)[1].toUpperCase());
+                if (!faculties.length) continue;
+
+                let isLab = subject.toUpperCase().includes('LAB');
+                let slot = slotNames[i];
+                let timeStr = times[slot];
+
+                if (isLab && i + 1 < slotCols.length) {
+                    let nextCol = slotCols[i + 1];
+                    if (nextCol < row.length && !row[nextCol]) {
+                        let nextSlot = slotNames[i + 1];
+                        timeStr = times[slot].split(' - ')[0] + ' - ' + times[nextSlot].split(' - ')[1];
+                        i++;
+                    }
+                }
+
+                for (let fac of faculties) {
+                    if (!schedule[fac]) schedule[fac] = [];
+                    schedule[fac].push([currentDay, slot, timeStr, currentCourse, subject, isLab]);
+                }
+            }
+        }
+
+        // Populate faculty dropdown
+        const facultySelect = document.getElementById('facultySelect');
+        let facultyList = Object.keys(schedule).sort();
+        for (let faculty of facultyList) {
+            let option = document.createElement('option');
+            option.value = faculty;
+            option.textContent = faculty;
+            facultySelect.appendChild(option);
+        }
+
+        // Function to get faculty schedule
+        function getFacultySchedule(faculty) {
+            if (!schedule[faculty]) return { schedule: [], freeSlots: [] };
+
+            const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+            let scheduleData = [];
+            let freeSlotsData = [];
+
+            for (let day of days) {
+                let daySched = schedule[faculty].filter(entry => entry[0] === day);
+                daySched.sort((a, b) => slotNames.indexOf(a[1]) - slotNames.indexOf(b[1]));
+
+                for (let entry of daySched) {
+                    let [, slot, timeStr, course, subject, isLab] = entry;
+                    let type = isLab ? "Lab" : "Class";
+                    scheduleData.push([day, slot, timeStr, course, subject, type]);
+                }
+
+                let occupiedSlots = daySched.map(entry => entry[1]);
+                let freeSlots = slotNames.filter(s => !occupiedSlots.includes(s));
+                for (let slot of freeSlots) {
+                    freeSlotsData.push([day, slot, times[slot]]);
+                }
+            }
+
+            return { schedule: scheduleData, freeSlots: freeSlotsData };
+        }
+
+        // Function to toggle tabs
+        function toggleTab(event, dayIndex, tabType) {
+            const daySection = event.target.closest('.day-section');
+            const tabs = daySection.querySelectorAll('.tab');
+            const contents = daySection.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => tab.classList.remove('active'));
+            contents.forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            daySection.querySelector(`.tab-content.${tabType}`).classList.add('active');
+        }
+
+        // Function to display schedule
+        function displaySchedule() {
+            const faculty = facultySelect.value;
+            const container = document.getElementById('scheduleContainer');
+            
+            if (!faculty) {
+                container.innerHTML = '';
+                container.classList.remove('visible');
+                return;
+            }
+
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading schedule...</div>';
+            container.classList.add('visible');
+
+            setTimeout(() => {
+                const { schedule, freeSlots } = getFacultySchedule(faculty);
+
+                if (!schedule.length && !freeSlots.length) {
+                    container.innerHTML = `<div class="error">No schedule found for faculty ${faculty}</div>`;
+                    return;
+                }
+
+                let html = `<div class="faculty-header">
+                    <div class="faculty-name">${faculty}</div>
+                    <div class="subtitle">Weekly Schedule Overview</div>
+                </div>`;
+
+                const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+                for (let dayIndex = 0; dayIndex < days.length; dayIndex++) {
+                    const day = days[dayIndex];
+                    
+                    html += `<div class="day-section">
+                        <div class="day-header">${day}</div>
+                        <div class="day-content">
+                            <div class="section-tabs">
+                                <div class="tab active" onclick="toggleTab(event, ${dayIndex}, 'classes')">Classes & Labs</div>
+                                <div class="tab" onclick="toggleTab(event, ${dayIndex}, 'free')">Free Slots</div>
+                            </div>`;
+
+                    // Classes/Labs content
+                    let daySchedule = schedule.filter(row => row[0] === day);
+                    html += `<div class="tab-content classes active">`;
+                    
+                    if (daySchedule.length) {
+                        html += `<div class="schedule-grid">`;
+                        for (let row of daySchedule) {
+                            const isLab = row[5] === 'Lab';
+                            html += `
+                                <div class="schedule-card">
+                                    <div class="card-header">
+                                        <span class="slot-badge">${row[1]}</span>
+                                        <span class="time-badge">${row[2]}</span>
+                                    </div>
+                                    <div class="course-name">${row[3]}</div>
+                                    <div class="subject-name">${row[4]}</div>
+                                    <span class="type-badge ${isLab ? 'type-lab' : 'type-class'}">${row[5]}</span>
+                                </div>`;
+                        }
+                        html += `</div>`;
+                    } else {
+                        html += `<div class="no-data">No classes or labs scheduled</div>`;
+                    }
+                    html += `</div>`;
+
+                    // Free Slots content
+                    let dayFreeSlots = freeSlots.filter(row => row[0] === day);
+                    html += `<div class="tab-content free">`;
+                    
+                    if (dayFreeSlots.length) {
+                        html += `<div class="free-slots-grid">`;
+                        for (let row of dayFreeSlots) {
+                            html += `
+                                <div class="free-slot">
+                                    <div class="free-slot-time">${row[1]}</div>
+                                    <div class="free-slot-period">${row[2]}</div>
+                                </div>`;
+                        }
+                        html += `</div>`;
+                    } else {
+                        html += `<div class="no-data">No free slots available</div>`;
+                    }
+                    html += `</div>`;
+
+                    html += `</div></div>`;
+                }
+
+                container.innerHTML = html;
+            }, 800);
+        }
+
+        // Add some interactive effects
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add pulse effect to select when empty
+            const select = document.getElementById('facultySelect');
+            select.classList.add('pulse');
+            
+            select.addEventListener('change', function() {
+                if (this.value) {
+                    this.classList.remove('pulse');
+                } else {
+                    this.classList.add('pulse');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
